@@ -1,2 +1,6 @@
 # Operationg-Systems
-Introduction to Operating Systems - 2018 Fall
+
+Course: Introduction to Operating Systems
+
+Semester: 2018 Fall
+

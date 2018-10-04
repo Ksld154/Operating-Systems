@@ -27,7 +27,10 @@ int main(void){
 		//InputBuffer[len-1] = '\0';
 
 
-		if(InputBuffer[len-2] == '&') ampersand = 1;
+		if(InputBuffer[len-2] == '&') {
+			ampersand = 1;
+			InputBuffer[len-2] = '\0';
+		}
 		else ampersand = 0;
 		//printf("%d\n", ampersand);
 
@@ -53,9 +56,13 @@ int main(void){
 		}
 		else if(pid == 0){  //child process
 			int forkmsg = execvp(arg[0], arg);
+
+
+
 		}
 		else{               //parent process   
-			wait(NULL);
+			if(!ampersand)
+				wait(NULL);
 			printf("Child complete.\n");
 		}
 		

@@ -12,7 +12,7 @@ int main(void){
 	int 	should_run = 1;           /*flag to determine when to exit program*/
 	while(should_run){
 
-		char 	*InputBuffer;
+		char 	*InputBuffer = malloc(sizeof(char) * 80);
 		char	*tmp = NULL;
 		int 	ampersand = 0;
 

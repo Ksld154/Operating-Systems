@@ -1,4 +1,4 @@
-# Operationg-Systems
+# Operating-Systems
 
 Course: Introduction to Operating Systems @ NCTU
 

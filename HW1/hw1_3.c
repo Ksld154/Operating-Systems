@@ -6,11 +6,12 @@
 int main(int argc, char const *argv[]){
     pid_t pid;
     pid_t parent_pid;
+    printf("Main process id : %d\n", getpid());
+    
     pid = fork();        // fork1
     
     
     if(pid > 0){
-        printf("Main process id : %d\n", getpid());
         wait(NULL);
         //exit(0);
     }

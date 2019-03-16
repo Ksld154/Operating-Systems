@@ -1,6 +1,6 @@
 // Student ID: 0516215
 // Name      : 林亮穎
-// Date      : 2018.12.
+// Date      : 2018.12.22
 #include "bmpReader.h"
 #include "bmpReader.cpp"
 #include <stdio.h>
@@ -14,8 +14,8 @@ using namespace std;
 #define MYGREEN 1
 #define MYBLUE	0
 #define THREAD_NUM 2
-#define SECTION_NUM 200
 
+int SECTION_NUM = 10;
 int imgWidth, imgHeight;
 int MEAN_FILTER_SIZE = 9;
 int SOBEL_FILTER_SIZE;
@@ -24,11 +24,6 @@ int *filter_gx, *filter_gy;
 
 int thread_cnt = 0;    // at the moment,  # of threads that has completed it's computation in that stage.
 int global_clk = 0;
-pthread_mutex_t mutex1;
-pthread_mutex_t mutex2;
-pthread_mutex_t mutexes[SECTION_NUM];
-pthread_mutex_t mutex_sync[SECTION_NUM];
-pthread_cond_t  synch[SECTION_NUM];
 
 struct sync{
     pthread_mutex_t mutex;
@@ -50,12 +45,10 @@ const char *outputMed_name[5] = {
 	"output5.bmp"
 };
 
-// int height_split = imgHeight / THREAD_NUM;
-
 unsigned char *pic_in, *pic_grey, *pic_mean, *pic_gx, *pic_gy, *pic_sobel,*pic_final;
 
-unsigned char RGB2grey(int w, int h)
-{
+inline unsigned char RGB2grey(int w, int h);//__attribute__((optimize("-O3")));
+inline unsigned char RGB2grey(int w, int h){
 	int tmp = (
 		pic_in[3 * (h*imgWidth + w) + MYRED] +
 		pic_in[3 * (h*imgWidth + w) + MYGREEN] +
@@ -66,23 +59,22 @@ unsigned char RGB2grey(int w, int h)
 	return (unsigned char)tmp;
 }
 
-unsigned char MeanFilter(int w, int h)
-{
+inline unsigned char MeanFilter(int w, int h);//__attribute__((optimize("-O3")));
+inline unsigned char MeanFilter(int w, int h){
 	int tmp = 0;
 	int a, b , window[9],k=0,sum=0;
 	int ws = (int)sqrt((float)MEAN_FILTER_SIZE);
-	for (int j = 0; j<ws; j++)
-	for (int i = 0; i<ws; i++)
-	{
-		a = w + i - (ws / 2);
-		b = h + j - (ws / 2);
+	for (register int j = 0; j<ws; j++){
+        for (register int i = 0; i<ws; i++){
+            a = w + i - (ws / 2);
+            b = h + j - (ws / 2);
 
-		// detect for borders of the image
-		if (a<0 || b<0 || a>=imgWidth || b>=imgHeight)continue;
+            // detect for borders of the image
+            if (a<0 || b<0 || a>=imgWidth || b>=imgHeight)continue;
 
-		sum=sum+pic_grey[b*imgWidth + a];
-	};
-
+            sum=sum+pic_grey[b*imgWidth + a];
+        }
+    }
 	tmp=sum/MEAN_FILTER_SIZE;
 	
 	if (tmp < 0) tmp = 0;
@@ -90,13 +82,13 @@ unsigned char MeanFilter(int w, int h)
 	return (unsigned char)tmp;
 }
 
-unsigned char gx_sobelFilter(int w, int h)
-{
+inline unsigned char gx_sobelFilter(int w, int h);//__attribute__((optimize("-O3")));
+inline unsigned char gx_sobelFilter(int w, int h){
 	int tmp = 0;
 	int a, b;
 	int ws = (int)sqrt((float)SOBEL_FILTER_SIZE);
-	for (int j = 0; j<ws; j++)
-	for (int i = 0; i<ws; i++)
+	for (register int j = 0; j<ws; j++)
+	for (register int i = 0; i<ws; i++)
 	{
 		a = w + i - (ws / 2);
 		b = h + j - (ws / 2);
@@ -111,13 +103,13 @@ unsigned char gx_sobelFilter(int w, int h)
 	return (unsigned char)tmp;
 }
 
-unsigned char gy_sobelFilter(int w, int h)
-{
+inline unsigned char gy_sobelFilter(int w, int h);//__attribute__((optimize("-O3")));
+inline unsigned char gy_sobelFilter(int w, int h){
 	int tmp = 0;
 	int a, b;
 	int ws = (int)sqrt((float)SOBEL_FILTER_SIZE);
-	for (int j = 0; j<ws; j++)
-	for (int i = 0; i<ws; i++)
+	for (register int j = 0; j<ws; j++)
+	for (register int i = 0; i<ws; i++)
 	{
 		a = w + i - (ws / 2);
 		b = h + j - (ws / 2);
@@ -132,8 +124,8 @@ unsigned char gy_sobelFilter(int w, int h)
 	return (unsigned char)tmp;
 }
 
-unsigned char sobelFilter(int w, int h)
-{
+inline unsigned char sobelFilter(int w, int h);//__attribute__((optimize("-O3")));
+inline unsigned char sobelFilter(int w, int h){
 	int tmp = 0;
 	tmp = sqrt(pic_gx[h*imgWidth + w]*pic_gx[h*imgWidth + w] + pic_gy[h*imgWidth + w]*pic_gy[h*imgWidth + w]);
 	if (tmp < 0) tmp = 0;
@@ -141,63 +133,11 @@ unsigned char sobelFilter(int w, int h)
 	return (unsigned char)tmp;
 }
 
-void *SingleMean(void *arg){
-    long int current_section = (long int)arg;
 
-    int height_split = imgHeight / SECTION_NUM;
-    int height_limit = (current_section+1)*height_split;
+inline void *MeanRunner(void *arg);//__attribute__((optimize("-O3")));
+inline void *SobelRunner(void *arg);//__attribute__((optimize("-O3")));
 
-    // if not the last section
-    if(current_section != SECTION_NUM-1){
-        for(int i = current_section*height_split; i < height_limit; i++){
-            for(int j = 0; j < imgWidth; j++){
-                pic_mean[i*imgWidth + j] = MeanFilter(j, i);		
-            }
-        }
-    }
-
-    // last section
-    else{
-        for(int i = current_section*height_split; i < imgHeight; i++){
-            for(int j = 0; j < imgWidth; j++){
-                pic_mean[i*imgWidth + j] = MeanFilter(j, i);		
-            }
-        }
-    }
-    pthread_exit(0);
-}
-
-void *SingleSobel(void *arg){
-    long int current_section = (long int)arg;
-    // cout << current_section << endl;
-
-    int height_split = imgHeight / SECTION_NUM;
-    if(current_section != SECTION_NUM-1){
-        for(int i = current_section*height_split; i < (current_section+1)*height_split; i++){
-            for(int j = 0; j < imgWidth; j++){
-                pic_gx[i*imgWidth + j] = gx_sobelFilter(j, i);
-                pic_gy[i*imgWidth + j] = gy_sobelFilter(j, i);
-                pic_sobel[i*imgWidth + j] = sobelFilter(j, i);
-            }
-        }
-    }
-    else{
-        for(int i = current_section*height_split; i < imgHeight; i++){
-            for(int j = 0; j < imgWidth; j++){
-                pic_gx[i*imgWidth + j] = gx_sobelFilter(j, i);
-                pic_gy[i*imgWidth + j] = gy_sobelFilter(j, i);
-                pic_sobel[i*imgWidth + j] = sobelFilter(j, i);
-            }
-        }
-    }
-    pthread_exit(0);
-}
-
-void *MeanRunner(void *arg);
-void *SobelRunner(void *arg);
-
-int main()
-{
+int main(){
 	// read mask file
 	FILE* mask;
 
@@ -226,27 +166,19 @@ int main()
 		pic_final = (unsigned char*)malloc(3 * imgWidth*imgHeight*sizeof(unsigned char));
 	
 		//convert RGB image to grey image
-		for (int j = 0; j<imgHeight; j++) {
-			for (int i = 0; i<imgWidth; i++){
+		for (register int j = 0; j<imgHeight; j++) {
+			for (register int i = 0; i<imgWidth; i++){
 				pic_grey[j*imgWidth + i] = RGB2grey(i, j);
 			}
 		}
 
 
-        // pthread_mutex_init(&mutex1, NULL);
-        // pthread_mutex_init(&mutex2, NULL);
+        if(imgHeight < SECTION_NUM)
+            SECTION_NUM = 1;
 
-        
-        for(int i = 0; i < SECTION_NUM; i++){
-            pthread_mutex_init(&mutexes[i], NULL);
-            pthread_mutex_init(&mutex_sync[i], NULL);
-            pthread_mutex_init(&sync_thread.mutex, NULL);
-            pthread_cond_init(&sync_thread.other_thread, NULL);
-            pthread_cond_init(&synch[i], NULL);
 
-        }
-        
-
+        pthread_mutex_init(&sync_thread.mutex, NULL);
+        pthread_cond_init(&sync_thread.other_thread, NULL);
 
         pthread_t tid[2];
         pthread_create(&tid[0], NULL, MeanRunner,  NULL);
@@ -270,15 +202,14 @@ int main()
                     }
                 }        
             }
-            // }
         }
 
         pthread_join(tid[0], NULL);        
         pthread_join(tid[1], NULL);  
 
 		//extend the size form WxHx1 to WxHx3
-		for (int j = 0; j<imgHeight; j++) {
-			for (int i = 0; i<imgWidth; i++){
+		for (register int j = 0; j<imgHeight; j++) {
+			for (register int i = 0; i<imgWidth; i++){
 				pic_final[3 * (j*imgWidth + i) + MYRED]   = pic_sobel[j*imgWidth + i];
 				pic_final[3 * (j*imgWidth + i) + MYGREEN] = pic_sobel[j*imgWidth + i];
 				pic_final[3 * (j*imgWidth + i) + MYBLUE]  = pic_sobel[j*imgWidth + i];
@@ -296,11 +227,10 @@ int main()
 		free(pic_gx);
 		free(pic_gy);
 	}
-
 	return 0;
 }
 
-void *MeanRunner(void *arg){
+inline void *MeanRunner(void *arg){
     int height_split = imgHeight / SECTION_NUM;
     while(1){
         if(global_clk == SECTION_NUM){
@@ -313,18 +243,16 @@ void *MeanRunner(void *arg){
 
         }
         else{
-            for(int k = 0; k < SECTION_NUM; k++){
+            for(register int k = 0; k < SECTION_NUM; k++){
                 int height_limit = (k+1)*height_split;
 
                 // pthread_mutex_lock(&mutexes[k]);
-                
                 // printf("Mean start %d\n", k);
 
                 // other section
                 if(k != SECTION_NUM-1){
-
-                    for(int j = k*height_split; j < height_limit; j++){
-                        for(int i = 0; i < imgWidth; i++){
+                    for(register int j = k*height_split; j < height_limit; j++){
+                        for(register int i = 0; i < imgWidth; i++){
                             pic_mean[j*imgWidth + i] = MeanFilter(i, j);			
                         }
                     }
@@ -332,18 +260,16 @@ void *MeanRunner(void *arg){
 
                 // last section (deal with border)
                 else{
-                    for(int j = k*height_split; j < imgHeight; j++){
-                        for(int i = 0; i < imgWidth; i++){
+                    for(register int j = k*height_split; j < imgHeight; j++){
+                        for(register int i = 0; i < imgWidth; i++){
                             pic_mean[j*imgWidth + i] = MeanFilter(i, j);		
                         }
                     }
                 }
 
-
                 // printf("Mean finish %d\n", k);
                 // pthread_mutex_unlock(&mutexes[k]);
                 // pthread_cond_signal(&synch[k]);
-
 
                 pthread_mutex_lock(&sync_thread.mutex);
                 thread_cnt++;   //record the number of users that had finish stage1
@@ -352,12 +278,12 @@ void *MeanRunner(void *arg){
                 pthread_mutex_unlock(&sync_thread.mutex);
             }
         }
-    }
-    // pthread_exit(0);    
+    } 
 }
 
-void *SobelRunner(void *arg){
+inline void *SobelRunner(void *arg){
     int height_split = imgHeight/SECTION_NUM;
+
     while(1){
         if(global_clk == 0){
             pthread_mutex_lock(&sync_thread.mutex);
@@ -367,7 +293,7 @@ void *SobelRunner(void *arg){
             pthread_mutex_unlock(&sync_thread.mutex);
         }
         else{
-            for(int k = 0; k < SECTION_NUM; k++){
+            for(register int k = 0; k < SECTION_NUM; k++){
 
                 // pthread_mutex_lock(&mutexes[k]);
                 // pthread_cond_wait(&synch[k], &mutexes[k]);
@@ -375,9 +301,9 @@ void *SobelRunner(void *arg){
                 // pthread_mutex_lock(&mutexes[k]);
                 // printf("Sobel start %d\n", k);
                 
-                if(k != SECTION_NUM){
-                    for(int j = k*height_split; j < (k+1)*height_split; j++){
-                        for(int i = 0; i < imgWidth; i++){
+                if(k != SECTION_NUM-1){
+                    for(register int j = k*height_split; j < (k+1)*height_split; j++){
+                        for(register int i = 0; i < imgWidth; i++){
                             pic_gx[j*imgWidth + i] = gx_sobelFilter(i, j);
                             pic_gy[j*imgWidth + i] = gy_sobelFilter(i, j);
                             pic_sobel[j*imgWidth + i] = sobelFilter(i, j);	
@@ -386,8 +312,8 @@ void *SobelRunner(void *arg){
                 }
                 // last section
                 else{
-                    for(int j = k*height_split; j < imgHeight; j++){
-                        for(int i = 0; i < imgWidth; i++){
+                    for(register int j = k*height_split; j < imgHeight; j++){
+                        for(register int i = 0; i < imgWidth; i++){
                             pic_gx[j*imgWidth + i] = gx_sobelFilter(i, j);
                             pic_gy[j*imgWidth + i] = gy_sobelFilter(i, j);
                             pic_sobel[j*imgWidth + i] = sobelFilter(i, j);	
